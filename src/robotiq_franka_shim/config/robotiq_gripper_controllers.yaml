@@ -1,0 +1,42 @@
+# ROS 2 Humble (Ubuntu 22.04).
+#
+# Merge these entries into the parameter file that the FR3 ros2_control_node
+# already loads -- the controller_manager is shared, so update_rate stays
+# whatever franka_ros2 sets. Do NOT redeclare update_rate here.
+
+controller_manager:
+  ros__parameters:
+    robotiq_gripper_controller:
+      # Humble: provided by the gripper_controllers package.
+      # (Jazzy and newer renamed this to
+      #  parallel_gripper_action_controller/GripperActionController.)
+      type: position_controllers/GripperActionController
+    robotiq_activation_controller:
+      type: robotiq_controllers/RobotiqActivationController
+
+robotiq_gripper_controller:
+  ros__parameters:
+    joint: robotiq_85_left_knuckle_joint
+
+    # Deliberately NOT setting use_effort_interface / use_speed_interface.
+    # For binary open/close there is nothing to gain from per-goal tuning, so
+    # force and speed are set once via the gripper_{force,speed}_multiplier
+    # hardware params in the xacro. This also avoids the mismatch in upstream's
+    # robotiq_description/config/robotiq_controllers.yaml, whose interface names
+    # do not match what the hardware actually exports
+    # ("<joint>/set_gripper_max_effort" / "<joint>/set_gripper_max_velocity",
+    # see robotiq_driver/src/hardware_interface.cpp).
+    max_effort: 40.0
+
+    # The 2F-85 stalls by design when it grasps an object, so stalling must not
+    # be treated as a failure.
+    allow_stalling: true
+    stall_timeout: 0.3
+    stall_velocity_threshold: 0.001
+
+    goal_tolerance: 0.02
+    action_monitor_rate: 20.0
+
+robotiq_activation_controller:
+  ros__parameters:
+    default: true

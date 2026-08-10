@@ -1,0 +1,20 @@
+# Upstream dependencies, pulled as source. Nothing here is forked or patched:
+# all local changes live in src/robotiq_franka_shim, so upstream can be bumped
+# by editing the version below.
+#
+#   cd <workspace>
+#   vcs import src < src/fr3_robotiq_bringup/fr3_robotiq.humble.repos
+#
+repositories:
+  ros2_robotiq_gripper:
+    type: git
+    url: https://github.com/PickNikRobotics/ros2_robotiq_gripper.git
+    # The `main` branch does NOT build on Humble: it uses the Kilted-era
+    # on_init(HardwareComponentInterfaceParams&) hardware_interface API.
+    # Pinned to the head of the `humble` branch instead.
+    version: a29c69b7516b7a97737b5e43e118e6598ace0832
+  serial:
+    type: git
+    url: https://github.com/tylerjw/serial.git
+    # Not available from apt; robotiq_driver links serial::serial.
+    version: ros2

@@ -1,0 +1,13 @@
+# colcon
+build/
+install/
+log/
+
+# 上游依赖由 vcs import 拉取，不入库
+/src/ros2_robotiq_gripper/
+/src/serial/
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/

@@ -1,0 +1,93 @@
+<?xml version="1.0"?>
+<!--
+  Minimal Robotiq 2F-85 integration for a joint-space-only stack
+  (no MoveIt, no RViz, no EE pose in the observation).
+  Targets ROS 2 Humble / Ubuntu 22.04.
+
+  Compared to robotiq_description/urdf/robotiq_2f_85_macro.urdf.xacro this drops
+  all 9 visual/collision links and the 5 mimic joints, and keeps only:
+    - the <ros2_control> block, which is what actually loads the serial driver
+    - a stub link + revolute joint, so robot_state_publisher does not spam
+      "joint ... not found in URDF" for the state the broadcaster publishes
+
+  Include this from the FR3 xacro in place of the franka_hand macro, e.g.
+
+    <xacro:include filename="$(find robotiq_franka_shim)/urdf/robotiq_2f_85_minimal.xacro"/>
+    <xacro:robotiq_2f_85_minimal parent="fr3_link8" com_port="/dev/robotiq"/>
+
+  NOTE: the gripper mass is NOT communicated to the FR3 through the URDF.
+  Set the payload separately via the franka_ros2 set_load service, otherwise
+  gravity compensation and the collision thresholds will be wrong.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="robotiq_2f_85_minimal" params="
+      parent
+      prefix:=''
+      name:=RobotiqGripperHardwareInterface
+      com_port:=/dev/robotiq
+      use_fake_hardware:=false
+      gripper_closed_position:=0.7929
+      gripper_speed_multiplier:=0.25
+      gripper_force_multiplier:=0.20">
+
+    <!-- Stub kinematics: enough for robot_state_publisher, no geometry. -->
+    <link name="${prefix}robotiq_85_base_link"/>
+    <link name="${prefix}robotiq_85_left_knuckle_link"/>
+
+    <joint name="${prefix}robotiq_85_base_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="${prefix}robotiq_85_base_link"/>
+      <!-- Official Robotiq coupling on the FR3 flange. The -pi/4 matches the
+           fr3_link8 frame convention; measure and correct if your mount differs. -->
+      <origin xyz="0 0 0" rpy="0 0 ${-pi/4}"/>
+    </joint>
+
+    <joint name="${prefix}robotiq_85_left_knuckle_joint" type="revolute">
+      <parent link="${prefix}robotiq_85_base_link"/>
+      <child link="${prefix}robotiq_85_left_knuckle_link"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <limit lower="0.0" upper="0.8" velocity="0.5" effort="50"/>
+    </joint>
+
+    <ros2_control name="${name}" type="system">
+      <hardware>
+        <!-- Set to true to exercise the whole control chain with no gripper attached. -->
+        <param name="use_dummy">false</param>
+
+        <xacro:if value="${use_fake_hardware}">
+          <plugin>mock_components/GenericSystem</plugin>
+          <param name="state_following_offset">0.0</param>
+        </xacro:if>
+        <xacro:unless value="${use_fake_hardware}">
+          <plugin>robotiq_driver/RobotiqGripperHardwareInterface</plugin>
+          <param name="COM_port">${com_port}</param>
+          <param name="gripper_closed_position">${gripper_closed_position}</param>
+          <!-- Keep these low at first: the 2F-85 is much faster and much stronger
+               than the Franka Hand, and the VLA was trained on the latter. -->
+          <param name="gripper_speed_multiplier">${gripper_speed_multiplier}</param>
+          <param name="gripper_force_multiplier">${gripper_force_multiplier}</param>
+        </xacro:unless>
+      </hardware>
+
+      <joint name="${prefix}robotiq_85_left_knuckle_joint">
+        <command_interface name="position"/>
+        <state_interface name="position">
+          <param name="initial_value">0.0</param>
+        </state_interface>
+        <!-- Humble's GripperActionController hardcodes a claim on both the
+             position and the velocity state interface, so velocity must stay
+             declared even though the driver never updates it (it reads 0.0
+             forever). Do not remove it. -->
+        <state_interface name="velocity"/>
+      </joint>
+
+      <gpio name="reactivate_gripper">
+        <command_interface name="reactivate_gripper_cmd"/>
+        <command_interface name="reactivate_gripper_response"/>
+      </gpio>
+    </ros2_control>
+
+  </xacro:macro>
+</robot>
