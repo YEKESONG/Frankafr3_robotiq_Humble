@@ -239,7 +239,11 @@ python3 scripts/probe_robotiq_serial.py --watch
 总线空闲时没有任何驱动器在推电平，接反了也照样静默 —— 收发器的失效保护偏置会把
 悬空的线拉到 mark。只有「收到持续 0x00 噪声」才是接反的阳性证据，静默是无信息的。
 
-接线改好后夹爪 LED 会从红转蓝，`probe_robotiq_serial.py --quick` 会打出带 ★ 的行。
+**判据只看有没有 ★，不要看 LED。** `probe_robotiq_serial.py` 是只读的，
+它只读状态寄存器、从不写激活位（rACT），所以链路即使完全正常，
+跑探针时 LED 也会一直是红的。红转蓝要等 ROS 驱动启动时执行激活
+（日志里的 `Robotiq Gripper successfully activated!`）。
+上电即红、还没通信就是红，是完全正常的初始状态。
 
 ## 参数
 
@@ -292,11 +296,14 @@ python3 scripts/probe_robotiq_serial.py --watch
 | 控制器链路（mock_components） | ✅ `joint_state_broadcaster`、`robotiq_gripper_controller` 均 configured + activated |
 | 重复启动 6 次 | ✅ 6/6 两个控制器都起来 |
 | 端到端方向与话题（`test_gripper_chain.py`，fake） | ✅ 4/4 PASS |
-| **接实物** | ❌ **未通过：夹爪在 RS-485 上无应答** |
+| **接实物：驱动激活** | ✅ `Robotiq Gripper successfully activated!` |
+| **接实物：三个控制器** | ✅ 均 active（含只有实物才有的 activation controller） |
+| **接实物：端到端** | ✅ 4/4 PASS，夹爪实际张合，方向正确 |
 
-实物那一项：串口能正常打开，但驱动的 Modbus 请求收不到任何回复
-（`Requested 8 bytes, but got 0`，重试 5 次后 `Failed to deactivate the gripper`）。
-故障已定位到差分对本身，ROS 侧不需要再改，详见下一节。
+实物闭合到 0.7824 rad 而非指令的 0.7929，是两指空载互顶后停住，属正常
+——`allow_stalling: true` 正是为此。
+
+尚未验证：接上 FR3 之后的完整 GELLO 遥操（本工作空间之外的臂那一路）。
 
 ## 不在本工作空间范围内
 
