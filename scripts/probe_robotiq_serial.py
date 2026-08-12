@@ -233,6 +233,54 @@ def watch(port, slave=9, baud=115200, period=0.5):
         time.sleep(period)
 
 
+def soak(port, seconds, slave=9, baud=115200):
+    """持续高频轮询，统计成功率和中断。
+
+    专门用来揪间歇性接触：散线压接、端子没夹紧这类故障，静止时可能一切正常，
+    一旦线被拉扯/弯折就断。所以正确用法是**一边跑这个、一边用手拨动和轻拽线缆**，
+    尤其是夹爪要装到机械臂上之前——装上去之后线是会跟着动的。
+
+    静止 4 分钟 730/730 只能证明"不动时不会断"，证明不了装到臂上也不断。
+    """
+    print(f"链路稳定性 soak：{seconds}s @ {baud} 8N1 slave={slave}")
+    print("现在用手拨动、轻拽、弯折 A/B/GND 三根线和端子处，看会不会掉。\n")
+    frame = build(slave, 0x04, STATUS_REG, 3)
+    ok = bad = run_bad = 0
+    gaps = []
+    start = time.time()
+    try:
+        with open_port(port, baud, serial.PARITY_NONE, serial.STOPBITS_ONE, False) as ser:
+            while time.time() - start < seconds:
+                reply = transact(ser, frame, settle=0.01)
+                if reply and len(reply) >= 11 and reply[0] == slave:
+                    ok += 1
+                    if run_bad:
+                        gaps.append((round(time.time() - start, 1), run_bad))
+                        run_bad = 0
+                else:
+                    bad += 1
+                    run_bad += 1
+                    print(f"\r  !! t=+{time.time()-start:6.1f}s 掉了 (连续 {run_bad} 次)",
+                          end="", flush=True)
+                time.sleep(0.01)
+    except KeyboardInterrupt:
+        pass
+    if run_bad:
+        gaps.append((round(time.time() - start, 1), run_bad))
+
+    total = ok + bad
+    elapsed = time.time() - start
+    print(f"\r轮询 {total} 次 / {elapsed:.0f}s   成功 {ok}   失败 {bad}   "
+          f"成功率 {100 * ok / total if total else 0:.3f}%" + " " * 20)
+    if gaps:
+        print(f"中断 {len(gaps)} 次: " +
+              ", ".join(f"t=+{t}s(连续{n}次)" for t, n in gaps[:10]))
+        print("← 有中断就是接触不良。重新压接/拧紧端子、加应力释放，别指望它自己好。")
+    else:
+        print("← 全程无中断")
+    return not gaps
+
+
 def resolve_port(explicit):
     if explicit:
         return explicit
@@ -255,12 +303,16 @@ def main():
     parser.add_argument("--quick", action="store_true", help="只测出厂默认组合，跳过全扫描")
     parser.add_argument("--watch", action="store_true",
                         help="持续轮询，边改接线边看是否通（换 A/B 时用这个）")
+    parser.add_argument("--soak", type=float, metavar="SECONDS", default=None,
+                        help="高频轮询统计成功率，边跑边拨线可揪出间歇性接触")
     args = parser.parse_args()
 
     port = resolve_port(args.port)
     if port is None:
         sys.exit("找不到任何串口设备。RS-485 适配器插上了吗？ls -l /dev/serial/by-id/")
     print(f"端口: {port}")
+    if args.soak:
+        sys.exit(0 if soak(port, args.soak, args.slave) else 1)
     if args.watch:
         try:
             watch(port, args.slave)
