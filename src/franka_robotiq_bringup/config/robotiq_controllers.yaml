@@ -1,0 +1,62 @@
+# Controller manager + controllers for one Robotiq 2F-85.
+#
+# The `/**` wildcard is required: every node here runs inside a namespace
+# (e.g. /left/gripper), so a bare `controller_manager:` key would never match.
+#
+# NOTE: exactly ONE top-level `/**` key. Repeating it -- as
+# franka_gripper_manager/config/robotiq_controllers.yaml in the gello workspace
+# does, three times -- is a YAML duplicate key: the parser keeps only the last
+# block, silently dropping the controller_manager and gripper controller
+# configuration and leaving the spawners with no controller types to load.
+
+/**:
+  controller_manager:
+    ros__parameters:
+      update_rate: 500  # Hz
+
+      joint_state_broadcaster:
+        type: joint_state_broadcaster/JointStateBroadcaster
+
+      # Humble: provided by the gripper_controllers package.
+      # (Jazzy and newer renamed this to
+      #  parallel_gripper_action_controller/GripperActionController.)
+      robotiq_gripper_controller:
+        type: position_controllers/GripperActionController
+
+      robotiq_activation_controller:
+        type: robotiq_controllers/RobotiqActivationController
+
+  robotiq_gripper_controller:
+    ros__parameters:
+      joint: robotiq_85_left_knuckle_joint
+
+      # Deliberately NOT setting use_effort_interface / use_speed_interface.
+      # Humble's GripperActionController has no such parameters (its full set is
+      # joint, goal_tolerance, max_effort, allow_stalling, stall_timeout,
+      # stall_velocity_threshold, action_monitor_rate) and claims exactly one
+      # command interface, "<joint>/position". Passing them, as
+      # franka_gripper_manager's config in the gello workspace does, is silently
+      # ignored -- it reads as if force and speed were being configured when
+      # they are not. The driver exports its force/speed knobs under the
+      # non-standard names "<joint>/set_gripper_max_effort" and
+      # "<joint>/set_gripper_max_velocity" anyway, which no stock controller
+      # claims, so they are set once instead via the gripper_{force,speed}_
+      # multiplier hardware params in the xacro.
+      max_effort: 40.0
+
+      # The driver never writes the velocity state interface: it reads 0.0
+      # forever. Humble's GripperActionController claims it anyway and uses it
+      # for stall detection, so every goal looks stalled. With allow_stalling
+      # the goal then succeeds after stall_timeout instead of being aborted --
+      # which is also exactly what a real grasp looks like, since the 2F-85
+      # stops on the object rather than reaching its commanded position.
+      allow_stalling: true
+      stall_timeout: 0.5
+      stall_velocity_threshold: 0.001
+
+      goal_tolerance: 0.02
+      action_monitor_rate: 20.0
+
+  robotiq_activation_controller:
+    ros__parameters:
+      default: true

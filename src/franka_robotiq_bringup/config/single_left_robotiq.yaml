@@ -1,0 +1,24 @@
+# One Robotiq 2F-85 on the left arm.
+#
+# `namespace` must be "<arm namespace>/gripper" so that the client's relative
+# command topic resolves onto what franka_gello_state_publisher publishes:
+#   /left/gripper/gripper_client/target_gripper_width_percent
+# The arm namespace comes from the gello config (example_single_l.yaml).
+#
+# com_port: always a /dev/serial/by-id/... path. The GELLO Dynamixel adapter is
+# an FTDI device too, so /dev/ttyUSBn numbering is not stable across replugs.
+# Find yours with:  ls -l /dev/serial/by-id/
+LEFT:
+  namespace: "left/gripper"
+  com_port: "/dev/serial/by-id/usb-FTDI_USB_TO_RS-485_DAAL8Y3V-if00-port0"
+
+  # Start conservative: the 2F-85 closes far faster and far harder than the
+  # Franka Hand this replaces. 0.20 * 235 N is ~47 N, against the Franka Hand's
+  # ~70 N. Raise only after checking that grasps still hold.
+  gripper_speed_multiplier: 0.25
+  gripper_force_multiplier: 0.20
+
+  # GELLO's gripper_publisher emits a binary signal: gripper_open_output (1.0)
+  # when the trigger is released, gripper_closed_output (0.0) when squeezed.
+  input_open_value: 1.0
+  input_closed_value: 0.0

@@ -3,11 +3,12 @@ build/
 install/
 log/
 
-# 上游依赖由 vcs import 拉取，不入库
-/src/ros2_robotiq_gripper/
-/src/serial/
+# 上游依赖由 vcs import 从 fr3_robotiq.humble.repos 拉取，不进本仓库
+src/ros2_robotiq_gripper/
+src/serial/
 
-# python
+# start_single_arm_robotiq.sh 每次运行生成的临时 terminator 配置
+.robotiq_terminator_layout.cfg
+
 __pycache__/
-*.pyc
-*.egg-info/
+*.py[cod]

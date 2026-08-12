@@ -1,0 +1,11 @@
+# Stage-1 bring-up: mock_components instead of the driver.
+#
+# No serial port is opened and no gripper needs to be attached. Verifies that
+# the controller chain loads and that the GELLO percent topic reaches the
+# gripper action -- watch /left/gripper/joint_states follow the trigger.
+#
+# The activation controller is skipped automatically when use_fake_hardware is
+# true: its reactivate_gripper GPIO only exists on the real hardware interface.
+LEFT:
+  namespace: "left/gripper"
+  use_fake_hardware: true

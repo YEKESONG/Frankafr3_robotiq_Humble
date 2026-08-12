@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>franka_robotiq_bringup</name>
+  <version>0.1.0</version>
+  <description>
+    Robotiq 2F-85 bringup for the GELLO -> FR3 teleoperation stack, replacing the
+    Franka Hand. Targets ROS 2 Humble / Ubuntu 22.04.
+
+    Deliberately kept out of the existing gello workspace so the working
+    Franka Hand / UMDC pipeline stays untouched: this package only consumes the
+    Float32 command topic that franka_gello_state_publisher already publishes.
+  </description>
+  <maintainer email="songykee@gmail.com">SONG Yeke</maintainer>
+  <license>MIT</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+
+  <!-- Humble: position_controllers/GripperActionController lives in this package.
+       Jazzy and newer renamed it to
+       parallel_gripper_action_controller/GripperActionController. -->
+  <exec_depend>gripper_controllers</exec_depend>
+
+  <!-- Pulled from source via fr3_robotiq.humble.repos, not from apt. -->
+  <exec_depend>robotiq_driver</exec_depend>
+  <exec_depend>robotiq_controllers</exec_depend>
+  <exec_depend>robotiq_description</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

@@ -1,20 +1,19 @@
-# Upstream dependencies, pulled as source. Nothing here is forked or patched:
-# all local changes live in src/robotiq_franka_shim, so upstream can be bumped
-# by editing the version below.
+# 上游依赖，以源码方式拉取并锁版本。本仓库不 fork、不打补丁：
+# 所有自有改动都在 src/franka_robotiq_bringup 里。
 #
-#   cd <workspace>
-#   vcs import src < src/fr3_robotiq_bringup/fr3_robotiq.humble.repos
+#   cd /home/wang/Desktop/franka_robotiq_22.04
+#   vcs import src < fr3_robotiq.humble.repos
 #
 repositories:
   ros2_robotiq_gripper:
     type: git
     url: https://github.com/PickNikRobotics/ros2_robotiq_gripper.git
-    # The `main` branch does NOT build on Humble: it uses the Kilted-era
-    # on_init(HardwareComponentInterfaceParams&) hardware_interface API.
-    # Pinned to the head of the `humble` branch instead.
+    # `main` 分支在 Humble 上编不过：它用了 Kilted 才有的
+    # on_init(HardwareComponentInterfaceParams&) hardware_interface API。
+    # 锁在 `humble` 分支的 head。
     version: a29c69b7516b7a97737b5e43e118e6598ace0832
   serial:
     type: git
     url: https://github.com/tylerjw/serial.git
-    # Not available from apt; robotiq_driver links serial::serial.
+    # apt 里没有；robotiq_driver 链接 serial::serial。
     version: ros2

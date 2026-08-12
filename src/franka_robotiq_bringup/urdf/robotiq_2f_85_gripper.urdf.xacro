@@ -1,0 +1,89 @@
+<?xml version="1.0"?>
+<!--
+  Standalone Robotiq 2F-85 description: just the gripper, hanging off a `world`
+  link, with its own <ros2_control> block.
+
+  The FR3 arm is driven by a separate franka_ros2 ros2_control node running with
+  load_gripper:=false, so the gripper gets its own controller_manager rather
+  than being merged into the arm's. That keeps this workspace independent of the
+  arm bringup: nothing here has to be rebuilt or restarted when the arm side
+  changes, and the existing Franka Hand pipeline stays untouched.
+
+  Geometry comes from the upstream macro. The <ros2_control> block does not:
+  upstream hardcodes `use_dummy` to false and pins the initial position state to
+  the *closed* angle, and neither is reachable through the macro's parameters.
+  Declaring our own block (with include_ros2_control:=false) makes `use_dummy` a
+  launch argument, which is what the staged bring-up needs, and drops the five
+  mimic joints from the control side; robot_state_publisher derives them from
+  the URDF's <mimic> tags, so no controller has to.
+-->
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="robotiq_gripper">
+
+  <!-- mock_components/GenericSystem: exercises the controller chain with no
+       driver and no serial port at all. -->
+  <xacro:arg name="use_fake_hardware" default="false"/>
+  <!-- Loads the real driver plugin but talks to its built-in fake backend:
+       tests plugin loading, interface claiming and the action chain without a
+       gripper attached. -->
+  <xacro:arg name="use_dummy" default="false"/>
+  <xacro:arg name="com_port" default="/dev/ttyUSB0"/>
+  <!-- The 2F-85 is both much faster and much stronger than the Franka Hand it
+       replaces (235 N vs ~70 N). Keeping the multipliers low makes the closing
+       motion resemble the Franka Hand's timing, which matters when recorded
+       data is replayed or fed to a policy trained on the old gripper. -->
+  <xacro:arg name="gripper_speed_multiplier" default="0.25"/>
+  <xacro:arg name="gripper_force_multiplier" default="0.20"/>
+  <xacro:arg name="gripper_closed_position" default="0.7929"/>
+
+  <xacro:include filename="$(find robotiq_description)/urdf/robotiq_2f_85_macro.urdf.xacro"/>
+
+  <link name="world"/>
+
+  <xacro:robotiq_gripper
+      name="RobotiqGripperHardwareInterface"
+      prefix=""
+      parent="world"
+      include_ros2_control="false"
+      gripper_closed_position="$(arg gripper_closed_position)">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:robotiq_gripper>
+
+  <ros2_control name="RobotiqGripperHardwareInterface" type="system">
+    <hardware>
+      <xacro:if value="$(arg use_fake_hardware)">
+        <plugin>mock_components/GenericSystem</plugin>
+        <param name="state_following_offset">0.0</param>
+      </xacro:if>
+      <xacro:unless value="$(arg use_fake_hardware)">
+        <plugin>robotiq_driver/RobotiqGripperHardwareInterface</plugin>
+        <param name="use_dummy">$(arg use_dummy)</param>
+        <param name="COM_port">$(arg com_port)</param>
+        <param name="gripper_closed_position">$(arg gripper_closed_position)</param>
+        <param name="gripper_speed_multiplier">$(arg gripper_speed_multiplier)</param>
+        <param name="gripper_force_multiplier">$(arg gripper_force_multiplier)</param>
+      </xacro:unless>
+    </hardware>
+
+    <joint name="robotiq_85_left_knuckle_joint">
+      <command_interface name="position"/>
+      <!-- Start from fully open. Upstream pins this to the closed angle, which
+           makes mock hardware report a closed gripper before anything has been
+           commanded. -->
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <!-- Humble's GripperActionController hardcodes a claim on both the
+           position and the velocity state interface, so velocity has to stay
+           declared even though the driver never updates it (it reads 0.0
+           forever). Do not remove it: without it the controller fails to
+           activate. -->
+      <state_interface name="velocity"/>
+    </joint>
+
+    <gpio name="reactivate_gripper">
+      <command_interface name="reactivate_gripper_cmd"/>
+      <command_interface name="reactivate_gripper_response"/>
+    </gpio>
+  </ros2_control>
+
+</robot>
