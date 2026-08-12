@@ -6,11 +6,15 @@
 #
 # 3 标签：T1 GELLO发布 / T2 机械臂 / T3 Robotiq夹爪
 #
-# 与原 Franka Hand 流程（gello 工作空间的 start_dual_arm.sh）的区别只有夹爪那一路：
-#   旧：L1 franka_umdc_control(libfranka 连 Franka Hand) + L4 franka_umdc_gripper_client
+# 本仓库自包含：GELLO 发布器、机械臂控制器、Robotiq 夹爪三路全在这一个工作空间里，
+# 不依赖任何其他工作空间。
+#
+# 与原 Franka Hand 流程的区别只有夹爪那一路：
+#   旧：franka_umdc_control(libfranka 连 Franka Hand) + franka_umdc_gripper_client
 #   新：T3 franka_robotiq_bringup(ros2_control + 串口 Modbus RTU 连 2F-85)
-# GELLO 发布器和机械臂控制器完全沿用 gello 工作空间里已经跑通的那套，一行没改。
-# 两边话题在 /left/gripper/gripper_client/target_gripper_width_percent 上对接。
+# GELLO 发布器和机械臂控制器是从 Franka 的 GELLO 集成里原样拷进来的，逻辑一行没改，
+# 只是随本仓库走。两边话题在
+# /left/gripper/gripper_client/target_gripper_width_percent 上对接。
 #
 # 顺序保证：机械臂标签不会盲目按时间启动，而是先主动等待 /left/gello/joint_states
 # 真正开始发布，确认后再等用户按空格才 launch 机械臂。
@@ -22,10 +26,8 @@
 # ============================================================================
 
 # ---- 可改参数 -----------------------------------------------------------
-# 已跑通的 GELLO 工作空间（本脚本只读不改）
-WS_GELLO="$HOME/Desktop/gello/gello_software-main/ros2"
-# 本工作空间（Robotiq 夹爪）
-WS_ROBOTIQ="$HOME/Desktop/franka_robotiq_22.04"
+# 本工作空间。按脚本自身位置推导，仓库克隆到哪都能用。
+WS="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 
 # 臂的命名空间。夹爪配置里的 namespace 必须是 "<这个值>/gripper"，
 # 否则 GELLO 发的百分比话题和夹爪 client 订阅的话题对不上。
@@ -117,28 +119,24 @@ if [ "$1" = "__node" ]; then
   ID="$2"
   printf '\033]0;%s\007' "$(node_title "$ID")"
   source /opt/ros/humble/setup.bash
-  # 两个工作空间都 source：GELLO 发布器/机械臂控制器在 gello 那边，
-  # Robotiq 夹爪在这边。两边包名不重叠，先后顺序无所谓。
-  source "$WS_GELLO/install/setup.bash"
-  source "$WS_ROBOTIQ/install/setup.bash"
-  cd "$WS_ROBOTIQ" || exit 1
+  source "$WS/install/setup.bash"
+  cd "$WS" || exit 1
   eval "$(node_cmd "$ID")"
   echo; echo "====== 本节点已退出：↑回车重跑，或关闭本标签 ======"
   exec bash
 fi
 # ------------------------------------------------------------------------
 
-for ws in "$WS_GELLO" "$WS_ROBOTIQ"; do
-  if [ ! -f "$ws/install/setup.bash" ]; then
-    echo "!! 找不到 $ws/install/setup.bash，请先在该工作空间 colcon build"
-    exit 1
-  fi
-done
+if [ ! -f "$WS/install/setup.bash" ]; then
+  echo "!! 找不到 $WS/install/setup.bash"
+  echo "   先跑一次搭建脚本： $WS/scripts/setup_workspace.sh"
+  exit 1
+fi
 
 IDS=(T1 T2 T3)
 
 SELF="$(readlink -f "$0")"
-CFG="$WS_ROBOTIQ/.robotiq_terminator_layout.cfg"
+CFG="$WS/.robotiq_terminator_layout.cfg"
 
 # 生成本次专用的 terminator 配置（含一个多标签 layout）
 {

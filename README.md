@@ -1,88 +1,113 @@
 # franka_robotiq_22.04
 
-在 GELLO → Franka FR3 单臂遥操栈里，把 **Franka Hand 换成 Robotiq 2F-85**。
+GELLO → Franka FR3 单臂遥操，末端用 **Robotiq 2F-85** 取代 Franka Hand。
 
 目标平台：**Ubuntu 22.04 / ROS 2 Humble**。
 
-## 这个工作空间的定位
+## 自包含
 
-**独立于已经跑通的 gello 工作空间**（`~/Desktop/gello/gello_software-main/ros2`），
-那边一行都没改。两边只通过一个话题对接：
+**克隆本仓库 + 配好环境即可完成完整遥操，不依赖任何其他工作空间。**
+GELLO 发布器、机械臂控制器、Robotiq 夹爪三路全在这一个 workspace 里。
 
 ```
-franka_gello_state_publisher                     ← gello 工作空间（未改动）
-  └─ std_msgs/Float32
+franka_gello_state_publisher            GELLO 主手 → Dynamixel 读关节
+  ├─ sensor_msgs/JointState  /left/gello/joint_states ──────┐
+  └─ std_msgs/Float32                                       │
      /left/gripper/gripper_client/target_gripper_width_percent
-         │                    （1.0 = 松开/张开, 0.0 = 捏紧/闭合，二值）
-         ▼
-  robotiq_gripper_client                         ← 本工作空间
-     └─ control_msgs/GripperCommand（单位：knuckle 关节弧度）
-        /left/gripper/robotiq_gripper_controller/gripper_cmd
-            │
-            ▼
-     ros2_control（独立的 controller_manager）
+         │        （1.0 = 松开/张开, 0.0 = 捏紧/闭合，二值）  │
+         ▼                                                  ▼
+  robotiq_gripper_client                        franka_fr3_arm_controllers
+     └─ control_msgs/GripperCommand（knuckle 关节弧度）  joint_impedance_controller
+        /left/gripper/robotiq_gripper_controller/gripper_cmd    │
+            │                                                   ▼
+            ▼                                        franka_hardware（FCI）
+     ros2_control（夹爪独立的 controller_manager）         → FR3 172.16.0.3
        └─ robotiq_driver → Modbus RTU → USB-RS485 → 2F-85
 ```
 
-机械臂那一路（`franka_gello_state_publisher` + `franka_fr3_arm_controllers`）
-继续用 gello 工作空间里的版本。臂的配置本来就是 `load_gripper: "false"`，
-所以拔掉 Franka Hand 对它没有任何影响，不需要改。
-
-原先的 Franka Hand 夹爪链路是
-`franka_umdc_control`（libfranka 直连）+ `franka_umdc_gripper_client`，
-本工作空间**整体替换掉这两个节点**，其余不动。想切回去只要跑原来的
-`start_dual_arm.sh left` 即可，两套可以共存。
+臂的配置本来就是 `load_gripper: "false"`，所以拔掉 Franka Hand 对它没有影响。
+原先的 Franka Hand 夹爪链路是 `franka_umdc_control`（libfranka 直连）+
+`franka_umdc_gripper_client`，本方案整体替换掉这两个节点。
 
 ### 为什么夹爪要自己开一个 controller_manager
 
-臂由 franka_ros2 自己的 ros2_control 节点驱动。把夹爪并进去意味着改 FR3 的 xacro
-和 franka 那边的启动流程，也就动到了已经跑通的东西。夹爪单开一个
-controller_manager 之后，这个工作空间和臂那边彻底解耦：改这边不用重启臂，
-改臂那边也不用动这边。
+臂由 franka_ros2 的 ros2_control 节点驱动。把夹爪并进去意味着改 FR3 的 xacro
+和 franka 那边的启动流程。夹爪单开一个 controller_manager 之后两边彻底解耦：
+改夹爪不用重启臂，改臂也不用动夹爪。
 
 ## 目录
 
 ```
 franka_robotiq_22.04/
-├── fr3_robotiq.humble.repos              # 上游依赖，锁 commit
+├── fr3_robotiq.humble.repos                # 上游依赖，锁 commit
 ├── scripts/
-│   ├── start_single_arm_robotiq.sh       # 单臂遥操一键启动（terminator 3 标签）
-│   ├── test_gripper_chain.py             # 端到端自检：方向 + 话题命名空间
-│   └── probe_robotiq_serial.py           # 裸 Modbus RTU 探针（绕开整个 ROS）
+│   ├── setup_workspace.sh                  # 一键搭建：拉依赖 + 屏蔽无关包 + 编译
+│   ├── start_single_arm_robotiq.sh         # 遥操一键启动（terminator 3 标签）
+│   ├── test_gripper_chain.py               # 端到端自检：方向 + 话题命名空间
+│   └── probe_robotiq_serial.py             # 裸 Modbus RTU 诊断（绕开整个 ROS）
 └── src/
-    ├── ros2_robotiq_gripper/             # 上游，vcs import 拉取，无改动
-    ├── serial/                           # 上游，vcs import 拉取，无改动
-    └── franka_robotiq_bringup/           # 唯一的自有包
-        ├── config/
-        │   ├── robotiq_controllers.yaml
-        │   ├── single_left_robotiq.yaml  # 实物
-        │   └── fake_left_robotiq.yaml    # 无硬件自检
-        ├── launch/
-        │   ├── robotiq_gripper.launch.py # 单个夹爪，全参数
-        │   └── robotiq_teleop.launch.py  # 按 config YAML 起
-        ├── urdf/robotiq_2f_85_gripper.urdf.xacro
-        └── franka_robotiq_bringup/robotiq_gripper_client.py
+    ├── franka_robotiq_bringup/             # 自有包：夹爪这一路
+    │   ├── config/{robotiq_controllers,single_left_robotiq,fake_left_robotiq}.yaml
+    │   ├── launch/{robotiq_gripper,robotiq_teleop}.launch.py
+    │   ├── urdf/robotiq_2f_85_gripper.urdf.xacro
+    │   └── franka_robotiq_bringup/robotiq_gripper_client.py
+    ├── franka_gello_state_publisher/       # 从 Franka GELLO 集成拷入，含本机标定值
+    ├── franka_fr3_arm_controllers/         # 从 Franka GELLO 集成拷入，含本机臂配置
+    ├── ros2_robotiq_gripper/               # 上游，vcs import，无改动
+    ├── serial/                             # 上游，vcs import，无改动
+    └── franka_ros2/                        # 上游 v2.3.0，vcs import，无改动
 ```
+
+`franka_gello_state_publisher` 和 `franka_fr3_arm_controllers` 随仓库走而不是
+vcs 拉取，因为它们的 config 里是**本机标定出来的** GELLO 关节符号、装配偏置、
+夹爪量程和机械臂 IP，换一台机器要重新标，属于本地配置而非上游代码。
 
 ## 搭建
 
 ```bash
+git clone <本仓库> ~/Desktop/franka_robotiq_22.04
 cd ~/Desktop/franka_robotiq_22.04
 
-# 1. 上游依赖（已经 import 过就跳过）
-vcs import src < fr3_robotiq.humble.repos
+# 1. 系统依赖（一次性）
+sudo apt install -y python3-vcstool \
+    ros-humble-gripper-controllers ros-humble-libfranka \
+    ros-humble-franka-description ros-humble-franka-msgs \
+    ros-humble-joint-state-publisher ros-humble-joint-state-broadcaster \
+    ros-humble-moveit-core ros-humble-moveit-msgs
+pip install dynamixel_sdk pyserial
 
-# 2. Humble 的 position_controllers/GripperActionController 在这个包里，必须装
-sudo apt install -y ros-humble-gripper-controllers
-
-# 3. 编译
-source /opt/ros/humble/setup.bash
-colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
-source install/setup.bash
+# 2. 拉上游 + 屏蔽无关包 + 编译（幂等，可反复跑）
+./scripts/setup_workspace.sh
 ```
 
-`ros-humble-gripper-controllers` **是硬性依赖**：不装的话 `ros2_control_node`
-会以 `Loader for controller 'robotiq_gripper_controller' ... not found` 失败。
+`setup_workspace.sh` 会先检查上面这些依赖，缺了直接告诉你缺哪个，然后
+`vcs import` 拉上游、给 franka_ros2 里用不到的包打 `COLCON_IGNORE`、最后编译。
+
+只需要 franka_ros2 的 4 个包：`franka_hardware`（FCI 硬件插件）、`franka_msgs`、
+`franka_semantic_components`、`franka_robot_state_broadcaster`。
+其余（gazebo bringup、moveit config、example controllers、franka_gripper）
+会拖进一堆用不到的依赖，编译慢且容易失败，所以屏蔽掉。
+
+每个新终端：
+
+```bash
+source /opt/ros/humble/setup.bash
+source ~/Desktop/franka_robotiq_22.04/install/setup.bash
+```
+
+> **注意 colcon 会把构建时的 `AMENT_PREFIX_PATH` 烧进 `install/setup.sh`。**
+> 如果你的 `.bashrc` 自动 source 了别的 franka/gello 工作空间，本工作空间就会
+> 反过来链到它们身上，"自包含"就名存实亡了。要么把 `.bashrc` 里那些
+> source 行去掉，要么在干净环境里编译：
+>
+> ```bash
+> env -i HOME=$HOME PATH=/usr/bin:/bin bash --noprofile --norc -c \
+>   'cd ~/Desktop/franka_robotiq_22.04 && source /opt/ros/humble/setup.bash && \
+>    colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release'
+> ```
+>
+> 验证：source 之后 `echo $AMENT_PREFIX_PATH | tr : "\n"` 里除了
+> `/opt/ros/humble` 和本仓库不应有别的路径。
 
 ## 串口
 
@@ -291,7 +316,7 @@ python3 scripts/probe_robotiq_serial.py --watch
 
 | 项 | 状态 |
 |---|---|
-| 6 个包编译 | ✅ 通过 |
+| 12 个包在干净环境编译 | ✅ 通过 |
 | xacro 渲染（fake / 实物两种模式） | ✅ 通过 |
 | 控制器链路（mock_components） | ✅ `joint_state_broadcaster`、`robotiq_gripper_controller` 均 configured + activated |
 | 重复启动 6 次 | ✅ 6/6 两个控制器都起来 |
@@ -299,11 +324,18 @@ python3 scripts/probe_robotiq_serial.py --watch
 | **接实物：驱动激活** | ✅ `Robotiq Gripper successfully activated!` |
 | **接实物：三个控制器** | ✅ 均 active（含只有实物才有的 activation controller） |
 | **接实物：端到端** | ✅ 4/4 PASS，夹爪实际张合，方向正确 |
+| **RS-485 链路稳定性** | ✅ 静止 soak 730/730 @ 240s，无中断 |
+| **自包含** | ✅ 干净环境下 `AMENT_PREFIX_PATH` 只含 `/opt/ros/humble` 和本仓库；三路 launch 均可解析 |
 
 实物闭合到 0.7824 rad 而非指令的 0.7929，是两指空载互顶后停住，属正常
 ——`allow_stalling: true` 正是为此。
 
-尚未验证：接上 FR3 之后的完整 GELLO 遥操（本工作空间之外的臂那一路）。
+尚未验证：**接上 FR3 通电之后的完整遥操**。臂那一路的代码已在本工作空间里编过、
+launch 可解析，但没有在真机上跑过力矩控制。
+
+RS-485 的 soak 是在**线缆静止**时做的。夹爪装到机械臂上之后线会跟着动，
+装之前建议再做一次动态验证：跑 `probe_robotiq_serial.py --soak 120`，
+同时用手拨动、轻拽、弯折三根信号线和端子，掉一次它就会打出时间戳。
 
 ## 不在本工作空间范围内
 

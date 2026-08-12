@@ -1,5 +1,7 @@
 # 上游依赖，以源码方式拉取并锁版本。本仓库不 fork、不打补丁：
-# 所有自有改动都在 src/franka_robotiq_bringup 里。
+# 所有自有改动都在 src/franka_robotiq_bringup，
+# 另外 src/franka_gello_state_publisher 和 src/franka_fr3_arm_controllers
+# 是从 Franka 的 GELLO 集成里拷进来的，带本机标定值，因此随仓库走、不从这里拉。
 #
 #   cd /home/wang/Desktop/franka_robotiq_22.04
 #   vcs import src < fr3_robotiq.humble.repos
@@ -17,3 +19,10 @@ repositories:
     url: https://github.com/tylerjw/serial.git
     # apt 里没有；robotiq_driver 链接 serial::serial。
     version: ros2
+  franka_ros2:
+    type: git
+    url: https://github.com/frankarobotics/franka_ros2.git
+    # 机械臂那一路需要它提供 franka_hardware（FCI 的 ros2_control 硬件插件）
+    # 和 franka_robot_state_broadcaster —— 这两个 apt 里都没有。
+    # 锁在 v2.3.0，与本机原 franka_ros2_ws 里跑通的版本一致。
+    version: 7ed045886cdfaf60810e5bf7450f1d56ccb6c8f4
