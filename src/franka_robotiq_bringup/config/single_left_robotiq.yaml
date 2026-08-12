@@ -15,7 +15,7 @@ LEFT:
   # Start conservative: the 2F-85 closes far faster and far harder than the
   # Franka Hand this replaces. 0.20 * 235 N is ~47 N, against the Franka Hand's
   # ~70 N. Raise only after checking that grasps still hold.
-  gripper_speed_multiplier: 0.25
+  gripper_speed_multiplier: 0.75
   gripper_force_multiplier: 0.20
 
   # GELLO's gripper_publisher emits a binary signal: gripper_open_output (1.0)
