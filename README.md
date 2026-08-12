@@ -240,17 +240,20 @@ closed, past the joint's 0.8 rad URDF limit.
 
 ## Status
 
-Verified on real hardware: driver activation, all three controllers active, end-to-end direction
-and topics (4/4 PASS), 6/6 clean restarts, and a 730/730 RS-485 soak over 240 s. In a clean
-environment `AMENT_PREFIX_PATH` contains only `/opt/ros/humble` and this repository.
+**Full teleoperation runs on real hardware.** All three legs come up from
+`start_single_arm_robotiq.sh`: the FR3 tracks the GELLO under torque control while the Robotiq
+2F-85 opens and closes from the same leader trigger.
+
+Also verified: driver activation, all three controllers active, end-to-end direction and topics
+(4/4 PASS), 6/6 clean restarts, and a 730/730 RS-485 soak over 240 s. In a clean environment
+`AMENT_PREFIX_PATH` contains only `/opt/ros/humble` and this repository.
 
 Closing to 0.7824 rad instead of the commanded 0.7929 is expected — the fingers meet unloaded
 and stall, which is what `allow_stalling: true` is for.
 
-**Not yet verified: full teleoperation with a powered FR3.** The arm leg builds and its launch
-files resolve, but torque control has not been run on the real robot. The RS-485 soak was also
-done with the cable at rest; before mounting the gripper on the arm, repeat it with
-`probe_robotiq_serial.py --soak 120` while flexing and tugging the signal wires.
+The RS-485 soak was measured with the cable at rest. Now that the harness moves with the arm, it
+is worth re-running `probe_robotiq_serial.py --soak 120` while flexing and tugging the signal
+wires, to confirm the link holds under motion.
 
 ## Out of scope
 

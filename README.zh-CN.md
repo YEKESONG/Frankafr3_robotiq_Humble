@@ -228,16 +228,19 @@ pkill -9 -f lib/franka_robotiq_bringup/robotiq_gripper_client
 
 ## 当前状态
 
-实物已验证：驱动激活、三个控制器全 active、端到端方向与话题 4/4 PASS、连续重启 6/6、
+**完整遥操已在真机上跑通。** 三路由 `start_single_arm_robotiq.sh` 一起启动：FR3 在力矩控制
+下跟随 GELLO，Robotiq 2F-85 由同一个主手扳机张合。
+
+其余已验证项：驱动激活、三个控制器全 active、端到端方向与话题 4/4 PASS、连续重启 6/6、
 RS-485 静止 soak 730/730 @ 240 s。干净环境下 `AMENT_PREFIX_PATH` 只含 `/opt/ros/humble`
 和本仓库。
 
 实物闭合到 0.7824 rad 而非指令的 0.7929 属正常：两指空载互顶后停住，`allow_stalling: true`
 正是为此。
 
-**尚未验证：接上 FR3 通电之后的完整遥操。** 臂那一路已编过、launch 可解析，但没有在真机上
-跑过力矩控制。RS-485 的 soak 也是在线缆静止时做的；夹爪装到机械臂上之前，建议跑
-`probe_robotiq_serial.py --soak 120`，同时用手拨动、轻拽、弯折信号线再验一次。
+RS-485 的 soak 是在线缆静止时做的。现在线缆会跟着机械臂一起动，建议再跑一次
+`probe_robotiq_serial.py --soak 120`，同时用手拨动、轻拽、弯折信号线，确认运动状态下链路
+也不掉。
 
 ## 不在本工作空间范围内
 
