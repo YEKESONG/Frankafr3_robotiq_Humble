@@ -200,6 +200,39 @@ def check_idle_line(port, seconds=3.0):
             print(f"    {baud:>6}: 收到 {len(buf)} 字节噪声 -> {top}  ← 疑似 A/B 接反")
 
 
+def watch(port, slave=9, baud=115200, period=0.5):
+    """持续轮询，边改接线边看结果。
+
+    A/B 到底哪根是哪根，看丝印猜不如直接试：让这个模式跑着，把两根信号线对调，
+    通了会立刻打印 ★ 并响铃，不用来回敲命令。
+    """
+    print(f"实时监视 slave={slave} @ {baud} 8N1，每 {period}s 一次。Ctrl-C 退出。")
+    print("现在可以对调 A/B 两根信号线，通了这里会立刻变。\n")
+    frame = build(slave, 0x04, STATUS_REG, 3)
+    last = None
+    streak = 0
+    while True:
+        try:
+            with open_port(port, baud, serial.PARITY_NONE, serial.STOPBITS_ONE, False) as ser:
+                reply = transact(ser, frame)
+        except Exception as exc:  # 拔线时串口会消失，别让脚本退出
+            reply = None
+            status = f"串口不可用: {exc}"
+        else:
+            status = describe(reply, frame)
+
+        if status == last:
+            streak += 1
+            print(f"\r  [{time.strftime('%H:%M:%S')}] {status}  (x{streak})", end="", flush=True)
+        else:
+            streak = 1
+            print(f"\r  [{time.strftime('%H:%M:%S')}] {status}" + " " * 20)
+            if reply:
+                print("\a  ★★★ 通了！夹爪 LED 应当已从红转蓝。Ctrl-C 退出后跑分级验证 ③④⑤")
+            last = status
+        time.sleep(period)
+
+
 def resolve_port(explicit):
     if explicit:
         return explicit
@@ -220,12 +253,20 @@ def main():
     parser.add_argument("--port", default=None, help="串口路径，默认自动找 by-id 里的 RS-485")
     parser.add_argument("--slave", type=int, default=9, help="从站地址，出厂默认 9")
     parser.add_argument("--quick", action="store_true", help="只测出厂默认组合，跳过全扫描")
+    parser.add_argument("--watch", action="store_true",
+                        help="持续轮询，边改接线边看是否通（换 A/B 时用这个）")
     args = parser.parse_args()
 
     port = resolve_port(args.port)
     if port is None:
         sys.exit("找不到任何串口设备。RS-485 适配器插上了吗？ls -l /dev/serial/by-id/")
     print(f"端口: {port}")
+    if args.watch:
+        try:
+            watch(port, args.slave)
+        except KeyboardInterrupt:
+            print("\n已退出监视。")
+        return
     print("提示: 任何带 ★ 的行都说明夹爪在总线上应答了。\n" + "=" * 68)
 
     check_tx_clocking(port)
